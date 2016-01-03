@@ -124,7 +124,7 @@ def request(context, flow):
     	q = flow.request.get_query()
 	flow.original = flow.copy()
 	original = flow.original
-
+	
     	changed_q = False
 	changed_h = False
 	changed_host = False
@@ -132,7 +132,13 @@ def request(context, flow):
 	for k in conf.keys():
 		conf1 = conf[k]
 
-		if k == "all" or original.match(re.escape(k)) or original.match(k):
+		escape_match = False
+		try:
+			escape_match = original.match(re.escape(k))
+		except Exception as e:
+			pass
+
+		if k == "all" or escape_match or original.match(k):
 
 			if "request" in conf1 and "path" in conf1["request"]:
 				path = conf1["request"]["path"]
@@ -230,8 +236,14 @@ def response(context, flow):
 			conf1 = conf[k]
 		    	if "nocache" in conf1:
     				nocache(flow)
-			
-		    	if k == "all" or original.match(re.escape(k)) or original.match(k):
+		
+			escape_match = False
+			try:
+				escape_match = original.match(re.escape(k))
+			except Exception as e:
+				pass
+	
+		    	if k == "all" or escape_match or original.match(k):
 
 				if "response" in conf1:
 					if "header" in conf1["response"]:

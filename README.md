@@ -31,8 +31,14 @@ What can be done:
 #### Replace a page with a local file
 ```python
 if proxy.match("^https\:\/\/www.google.it\/$"):
-	proxy.response.body.replace.file("./content.html")
+  proxy.response.body.replace.file("./content.html")
 ```
+#### Replace the request body, filter expression work too
+```python
+if proxy.match("~m POST ~u \"^http\:\/\/localhost\/mitm$\""):
+  proxy.request.body.replace.file("./post.txt")
+```
+
 
 #### Disable the client cache and bypass the proxy cache
 ```python

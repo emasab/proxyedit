@@ -4,6 +4,10 @@ def init(proxy):
 	if proxy.match("^https\:\/\/www.google.it\/$"):
 		proxy.response.body.replace.file("./content.html")
 
+	# Replace request body
+	#if proxy.match("~m POST ~u \"^http\:\/\/localhost:81\/mitm$\""):
+	#	proxy.request.body.replace.file("./post.txt")
+
 	# Disable client and bypass proxy cache
 	#if proxy.match("^https\:\/\/www.google.it\/$"):
 	#	proxy.nocache()
