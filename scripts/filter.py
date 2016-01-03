@@ -189,6 +189,22 @@ def request(context, flow):
 						flow.request.headers[k] = [realv(v, context, flow)]
 						changed_h = True
 
+			if "request" in conf1 and "body" in conf1["request"]:
+				
+				body = conf1["request"]["body"]
+				if "replace"in body:
+					body = body["replace"]
+					for k,v in body.items():
+						if k == "file":
+							body1 = open(v).read()
+							flow.request.content = body1
+						elif k == "url":
+							body1 = urlopen(v).read()
+							flow.request.content = body1
+						elif k == "regex":
+							for k,v in body["regex"].items():
+								flow.request.content = re.sub(k,v,flow.request.content)
+
 
 
 	if changed_q:	
@@ -240,11 +256,11 @@ def response(context, flow):
 							body = body["replace"]
 							for k,v in body.items():
 								if k == "file":
-									resp = open(v).read()
-									flow.response.content = resp
+									body1 = open(v).read()
+									flow.response.content = body1
 								elif k == "url":
-									resp = urlopen(v).read()
-									flow.response.content = resp
+									body1 = urlopen(v).read()
+									flow.response.content = body1
 								elif k == "regex":
 									for k,v in body["regex"].items():
 										flow.response.content = re.sub(k,v,flow.response.content)
