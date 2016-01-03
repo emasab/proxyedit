@@ -7,7 +7,7 @@ def init(proxy):
 	# Disable client and bypass proxy cache
 	#if proxy.match("^https\:\/\/www.google.it\/$"):
 	#	proxy.nocache()
-	#	proxy.noproxycache(randomize_param="kwnocache")
+	#	proxy.noproxycache(randomize_param="mynocache")
 	
 
 	# Add or replace an header
