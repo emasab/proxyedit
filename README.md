@@ -33,7 +33,7 @@ What can be done:
 if proxy.match("^https\:\/\/www.google.it\/$"):
   proxy.response.body.replace.file("./content.html")
 ```
-#### Replace the request body, filter expression work too
+#### Replace the request body, filter expressions work too
 ```python
 if proxy.match("~m POST ~u \"^http\:\/\/localhost\/mitm$\""):
   proxy.request.body.replace.file("./post.txt")
