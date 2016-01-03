@@ -34,7 +34,7 @@ if proxy.match("^https\:\/\/www.google.it\/$"):
 	proxy.response.body.replace.file("./content.html")
 ```
 
-#### Disable client and bypass proxy cache
+#### Disable the client cache and bypass the proxy cache
 ```python
 if proxy.match("^https\:\/\/www.google.it\/$"):
   proxy.nocache()
