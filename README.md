@@ -23,6 +23,12 @@ or directly with mitmdump
 mitmdump -p 8081 -s scripts/filter.py
 ```
 
+or with mitmproxy
+
+```sh
+mitmproxy -p 8081 -s scripts/filter.py
+```
+
 ## Configuration
 
 The configurations is placed in conf.py, it's a DSL that uses python.
