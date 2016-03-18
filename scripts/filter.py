@@ -16,7 +16,7 @@ class Match(object):
 		return True
 
 
-class NoProxyCache(object): 
+class NoProxyCache(object):
 
 	def noproxycache(self, proxy, debugger_friendly = False, randomize_param=False):
 		def val(context, flow):
@@ -28,7 +28,7 @@ class NoProxyCache(object):
 					val = [flow.original.request.url]
 				val = hashlib.sha256(val[0]).hexdigest()
 				val = val[len(val)-10:]
-					
+
 			return val
 
 		param = "nocache"
@@ -37,6 +37,8 @@ class NoProxyCache(object):
 		elif not randomize_param is False:
 			param = randomize_param
 
+		proxy.request.header.delete("If-None-Match", True)
+		proxy.request.header.delete("If-Modified-Since", True)
 		proxy.request.query.replace(param, val)
 
 class ProxyConf(dict):
@@ -48,7 +50,7 @@ class ProxyConf(dict):
 	def set_match(cls, m):
 		ProxyConf._match = m
 
-	
+
 	@classmethod
 	def get_extension_method(cls, proxy, m):
 		for e in ProxyConf._extensions:
@@ -100,7 +102,7 @@ class ProxyConf(dict):
 			self.parent[self.key] = v
 		elif len(args)==2:
 			cD[args[0]] = args[1]
-			
+
 
 confDict = ProxyConf()
 ProxyConf.add_extension(Match())
@@ -119,12 +121,70 @@ def realv(v, context, flow):
 	else:
 		return v
 
+def process_headers(flow, headers, direction):
+	if direction == "REQUEST":
+		flow_dir = flow.request
+	else:
+		flow_dir = flow.response
+
+	changed_h = False
+	if "add" in headers:
+		headers = headers["add"]
+		for k,v in headers.items():
+			if k in flow_dir.headers:
+				flow_dir.headers[k].append(realv(v, context, flow))
+			else:
+				flow_dir.headers[k] = [realv(v, context, flow)]
+			changed_h = True
+			print("\nADDED %s HEADER: %s\n" % (direction,k))
+
+
+	if "replace" in headers:
+		headers = headers["replace"]
+		for k,v in headers.items():
+			flow_dir.headers[k] = [realv(v, context, flow)]
+			changed_h = True
+			print("\nREPLACED %s HEADER: %s\n" % (direction,k))
+
+	if "delete" in headers:
+		headers = headers["delete"]
+		for d in headers:
+			if d in flow_dir.headers:
+				del flow_dir.headers[d]
+			changed_h = True
+			print("\nDELETED %s HEADER: %s\n" % (direction,d))
+
+	return changed_h
+
+def process_body(flow, body, direction):
+	if direction == "REQUEST":
+		flow_dir = flow.request
+	else:
+		flow_dir = flow.response
+
+	if "replace"in body:
+		body = body["replace"]
+		for k,v in body.items():
+			if k == "file":
+				body1 = open(v).read()
+				flow_dir.content = body1
+				print("\nREPLACED %s BODY WITH FILE: %s\n" % (direction,v))
+			elif k == "url":
+				body1 = urlopen(v).read()
+				flow_dir.content = body1
+				print("\nREPLACED %s BODY WITH URL: %s\n" % (direction,v))
+			elif k == "regex":
+				for k,v in body["regex"].items():
+					flow_dir.content = re.sub(k,v,flow_dir.content)
+					print("\nREPLACED %s BODY WITH REGEXP: %s\n" % (direction,k))
+
 @concurrent
 def request(context, flow):
-    	q = flow.request.get_query()
+	direction = "REQUEST"
+	q = flow.request.get_query()
 	flow.original = flow.copy()
 	original = flow.original
-	
+
     	changed_q = False
 	changed_h = False
 	changed_host = False
@@ -166,7 +226,7 @@ def request(context, flow):
 					host = host["replace"]
 					flow.request.host = realv(host, context, flow)
 					changed_host = True
-	
+
 
 			if "request" in conf1 and "query" in conf1["request"]:
 				query = conf1["request"]["query"]
@@ -179,110 +239,64 @@ def request(context, flow):
 			if "request" in conf1 and "header" in conf1["request"]:
 
 				headers = conf1["request"]["header"]
-				if "add" in headers:
-					headers = headers["add"]
-					for k,v in headers.items():
-						if k in flow.request.headers:
-							flow.request.headers[k].append(realv(v, context, flow))
-						else:
-							flow.request.headers[k] = [realv(v, context, flow)]
-						changed_h = True
 
-				headers = conf1["request"]["header"]
-				if "replace" in headers:
-					headers = headers["replace"]
-					for k,v in headers.items():
-						flow.request.headers[k] = [realv(v, context, flow)]
-						changed_h = True
+				changed_h = changed_h or process_headers(flow, headers, direction)
 
 			if "request" in conf1 and "body" in conf1["request"]:
-				
+
 				body = conf1["request"]["body"]
-				if "replace"in body:
-					body = body["replace"]
-					for k,v in body.items():
-						if k == "file":
-							body1 = open(v).read()
-							flow.request.content = body1
-						elif k == "url":
-							body1 = urlopen(v).read()
-							flow.request.content = body1
-						elif k == "regex":
-							for k,v in body["regex"].items():
-								flow.request.content = re.sub(k,v,flow.request.content)
+				process_body(flow, body, direction)
 
 
 
-	if changed_q:	
+	if changed_q:
 		flow.request.set_query(q)
 	if changed_h:
 		print(flow.request.headers)
 	if changed_host:
 		flow.request.update_host_header()
-		    
+
 
 @concurrent
 def response(context, flow):
-    if "all" in conf and "nocache" in conf["all"]:
-    	nocache(flow)
+	direction = "RESPONSE"
+	if "all" in conf and "nocache" in conf["all"]:
+		nocache(flow)
 
-    has_resp = len([ 1 for v in conf.values() if "response" in v or "nocache" in v ])>0
-    if has_resp:
+	has_resp = len([ 1 for v in conf.values() if "response" in v or "nocache" in v ])>0
+	if has_resp:
 	    original = flow.original
 	    original.response = flow.response.copy()
-	
+
 	    with decoded(flow.response):
 		    for k in conf.keys():
 			conf1 = conf[k]
 		    	if "nocache" in conf1:
-    				nocache(flow)
-		
+					nocache(flow)
+
 			escape_match = False
 			try:
 				escape_match = original.match(re.escape(k))
 			except Exception as e:
 				pass
-	
+
 		    	if k == "all" or escape_match or original.match(k):
 
 				if "response" in conf1:
 					if "header" in conf1["response"]:
 						headers = conf1["response"]["header"]
-						if "add"in headers:
-							headers = headers["add"]
-							for k,v in headers.items():
-								if k in flow.response.headers:
-									flow.response.headers[k].append(realv(v, context, flow))
-								else:
-									flow.response.headers[k] = [realv(v, context, flow)]
-
-						headers = conf1["response"]["header"]
-						if "replace"in headers:
-							headers = headers["replace"]
-							for k,v in headers.items():
-								flow.response.headers[k] = [realv(v, context, flow)]
+						process_headers(flow, headers, direction)
 
 					if "body" in conf1["response"]:
 						body = conf1["response"]["body"]
-						if "replace"in body:
-							body = body["replace"]
-							for k,v in body.items():
-								if k == "file":
-									body1 = open(v).read()
-									flow.response.content = body1
-								elif k == "url":
-									body1 = urlopen(v).read()
-									flow.response.content = body1
-								elif k == "regex":
-									for k,v in body["regex"].items():
-										flow.response.content = re.sub(k,v,flow.response.content)
+						process_body(flow, body, direction)
 
-    har_extractor.response(context,flow)
+	har_extractor.response(context,flow)
 
 def start(context, argv):
     if "all" in conf and "savehar" in conf["all"]:
 	savehar = conf["all"]["savehar"]
-	har_extractor.start(context, savehar)	
+	har_extractor.start(context, savehar)
 
 def done(context):
     har_extractor.done(context)
