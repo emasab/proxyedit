@@ -1,8 +1,12 @@
 def init(proxy):
-
+	pass
 	# Replace a page with a local file
-	if proxy.match("^https\:\/\/www.google.it\/$"):
-		proxy.response.body.replace.file("./content.html")
+	#if proxy.match("^https\:\/\/www.google.it\/$"):
+	#	proxy.response.body.replace.file("./content.html")
+
+	# Redirect to another page
+	#if proxy.match("^http:\/\/www.corriere.it.*"):
+	#	proxy.request.redirect("http://www.repubblica.it")
 
 	# Replace request body
 	#if proxy.match("~m POST ~u \"^http\:\/\/localhost:81\/mitm$\""):
@@ -12,7 +16,7 @@ def init(proxy):
 	#if proxy.match("^https\:\/\/www.google.it\/$"):
 	#	proxy.nocache()
 	#	proxy.noproxycache(randomize_param="mynocache")
-	
+
 
 	# Add or replace an header
 	#if proxy.match("^https\:\/\/www.google.it\/$"):
@@ -28,7 +32,7 @@ def init(proxy):
 
 	# Replace in the original content using a regex
 	#if proxy.match("^https\:\/\/www.google.it\/$"):
-	#	proxy.response.body.replace.regex("www\.google", "www.yahoo")	
+	#	proxy.response.body.replace.regex("www\.google", "www.yahoo")
 
 	# Add or replace query parameters
 	#if proxy.match("^https\:\/\/www.google.it\/$"):
@@ -42,6 +46,4 @@ def init(proxy):
 	#	proxy.request.path.replace("/google.html")
 
 	# Save the captured flow in a .har file
-	#proxy.savehar("./log.har")
-
-	
+	# proxy.savehar("./log.har")

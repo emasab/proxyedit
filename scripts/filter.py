@@ -6,8 +6,9 @@ sys.path.append("./scripts")
 import har_extractor
 import conf
 from urllib2 import urlopen
-from libmproxy.protocol.http import decoded
-from libmproxy.script import concurrent
+from mitmproxy.script import concurrent
+from mitmproxy.models import HTTPResponse
+from netlib.http import Headers
 
 class Match(object):
 
@@ -16,7 +17,7 @@ class Match(object):
 		return True
 
 
-class NoProxyCache(object): 
+class NoProxyCache(object):
 
 	def noproxycache(self, proxy, debugger_friendly = False, randomize_param=False):
 		def val(context, flow):
@@ -28,7 +29,7 @@ class NoProxyCache(object):
 					val = [flow.original.request.url]
 				val = hashlib.sha256(val[0]).hexdigest()
 				val = val[len(val)-10:]
-					
+
 			return val
 
 		param = "nocache"
@@ -39,6 +40,7 @@ class NoProxyCache(object):
 
 		proxy.request.query.replace(param, val)
 
+
 class ProxyConf(dict):
 
 	_match = "all"
@@ -48,7 +50,7 @@ class ProxyConf(dict):
 	def set_match(cls, m):
 		ProxyConf._match = m
 
-	
+
 	@classmethod
 	def get_extension_method(cls, proxy, m):
 		for e in ProxyConf._extensions:
@@ -100,7 +102,7 @@ class ProxyConf(dict):
 			self.parent[self.key] = v
 		elif len(args)==2:
 			cD[args[0]] = args[1]
-			
+
 
 confDict = ProxyConf()
 ProxyConf.add_extension(Match())
@@ -110,7 +112,7 @@ conf = confDict
 print(conf)
 
 def nocache(flow):
-	flow.response.headers["Cache-Control"] = ["no-cache, no-store, must-revalidate, max-age=0"]
+	flow.response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
 
 
 def realv(v, context, flow):
@@ -124,7 +126,7 @@ def request(context, flow):
     	q = flow.request.get_query()
 	flow.original = flow.copy()
 	original = flow.original
-	
+
     	changed_q = False
 	changed_h = False
 	changed_host = False
@@ -138,7 +140,7 @@ def request(context, flow):
 		except Exception as e:
 			pass
 
-		if k == "all" or escape_match or original.match(k):
+		if k == "all" or escape_match or k and original.match(k):
 
 			if "request" in conf1 and "path" in conf1["request"]:
 				path = conf1["request"]["path"]
@@ -166,7 +168,7 @@ def request(context, flow):
 					host = host["replace"]
 					flow.request.host = realv(host, context, flow)
 					changed_host = True
-	
+
 
 			if "request" in conf1 and "query" in conf1["request"]:
 				query = conf1["request"]["query"]
@@ -176,27 +178,36 @@ def request(context, flow):
 						q[k] = [realv(v, context, flow)]
 						changed_q = True
 
+			if "request" in conf1 and "redirect" in conf1["request"]:
+				redirect = conf1["request"]["redirect"]
+				redirect = realv(redirect, context, flow)
+				resp = HTTPResponse(
+					    b"HTTP/1.1", 302, b"OK",
+					    Headers(Location=redirect.encode('utf-8')),
+					    b""
+					)
+				flow.reply(resp)
+
 			if "request" in conf1 and "header" in conf1["request"]:
 
 				headers = conf1["request"]["header"]
 				if "add" in headers:
 					headers = headers["add"]
 					for k,v in headers.items():
-						if k in flow.request.headers:
-							flow.request.headers[k].append(realv(v, context, flow))
-						else:
-							flow.request.headers[k] = [realv(v, context, flow)]
+						flow.request.headers[k] = realv(v, context, flow)
 						changed_h = True
 
 				headers = conf1["request"]["header"]
 				if "replace" in headers:
 					headers = headers["replace"]
 					for k,v in headers.items():
-						flow.request.headers[k] = [realv(v, context, flow)]
+						if k in flow.request.headers:
+							del flow.request.headers[k]
+						flow.request.headers[k] = realv(v, context, flow)
 						changed_h = True
 
 			if "request" in conf1 and "body" in conf1["request"]:
-				
+
 				body = conf1["request"]["body"]
 				if "replace"in body:
 					body = body["replace"]
@@ -213,13 +224,13 @@ def request(context, flow):
 
 
 
-	if changed_q:	
+	if changed_q and len(original.request.get_query().items())>0:
 		flow.request.set_query(q)
 	if changed_h:
 		print(flow.request.headers)
 	if changed_host:
 		flow.request.update_host_header()
-		    
+
 
 @concurrent
 def response(context, flow):
@@ -229,60 +240,61 @@ def response(context, flow):
     has_resp = len([ 1 for v in conf.values() if "response" in v or "nocache" in v ])>0
     if has_resp:
 	    original = flow.original
-	    original.response = flow.response.copy()
-	
-	    with decoded(flow.response):
-		    for k in conf.keys():
-			conf1 = conf[k]
-		    	if "nocache" in conf1:
-    				nocache(flow)
-		
-			escape_match = False
-			try:
-				escape_match = original.match(re.escape(k))
-			except Exception as e:
-				pass
-	
-		    	if k == "all" or escape_match or original.match(k):
+	    original_resp = flow.response.copy()
 
-				if "response" in conf1:
-					if "header" in conf1["response"]:
-						headers = conf1["response"]["header"]
-						if "add"in headers:
-							headers = headers["add"]
-							for k,v in headers.items():
-								if k in flow.response.headers:
-									flow.response.headers[k].append(realv(v, context, flow))
-								else:
-									flow.response.headers[k] = [realv(v, context, flow)]
+	    for k in conf.keys():
+		conf1 = conf[k]
+	    	if "nocache" in conf1:
+			nocache(flow)
 
-						headers = conf1["response"]["header"]
-						if "replace"in headers:
-							headers = headers["replace"]
-							for k,v in headers.items():
-								flow.response.headers[k] = [realv(v, context, flow)]
+		escape_match = False
+		try:
+			escape_match = original.match(re.escape(k))
+		except Exception as e:
+			pass
 
-					if "body" in conf1["response"]:
-						body = conf1["response"]["body"]
-						if "replace"in body:
-							body = body["replace"]
-							for k,v in body.items():
-								if k == "file":
-									body1 = open(v).read()
-									flow.response.content = body1
-								elif k == "url":
-									body1 = urlopen(v).read()
-									flow.response.content = body1
-								elif k == "regex":
-									for k,v in body["regex"].items():
-										flow.response.content = re.sub(k,v,flow.response.content)
+    	if k == "all" or escape_match or original.match(k):
+
+			if "response" in conf1:
+				if "status_code" in conf1["response"]:
+					flow.response.status_code = conf1["response"]["status_code"]
+
+				if "header" in conf1["response"]:
+					headers = conf1["response"]["header"]
+					if "add"in headers:
+						headers = headers["add"]
+						for k,v in headers.items():
+							flow.response.headers[k] = realv(v, context, flow)
+
+					headers = conf1["response"]["header"]
+					if "replace"in headers:
+						headers = headers["replace"]
+						for k,v in headers.items():
+							if k in flow.response.headers:
+								del flow.response.headers[k]
+							flow.response.headers[k] = realv(v, context, flow)
+
+				if "body" in conf1["response"]:
+					body = conf1["response"]["body"]
+					if "replace"in body:
+						body = body["replace"]
+						for k,v in body.items():
+							if k == "file":
+								body1 = open(v).read()
+								flow.response.content = body1
+							elif k == "url":
+								body1 = urlopen(v).read()
+								flow.response.content = body1
+							elif k == "regex":
+								for k,v in body["regex"].items():
+									flow.response.content = re.sub(k,v,flow.response.content)
 
     har_extractor.response(context,flow)
 
 def start(context, argv):
     if "all" in conf and "savehar" in conf["all"]:
 	savehar = conf["all"]["savehar"]
-	har_extractor.start(context, savehar)	
+	har_extractor.start(context, savehar)
 
 def done(context):
     har_extractor.done(context)
