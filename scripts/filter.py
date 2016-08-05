@@ -151,8 +151,8 @@ def process_headers(flow, headers, direction):
         for d in headers:
             if d in flow_dir.headers:
                 del flow_dir.headers[d]
-            changed_h = True
-            print("\nDELETED %s HEADER: %s\n" % (direction,d))
+                changed_h = True
+                print("\nDELETED %s HEADER: %s\n" % (direction,d))
 
     return changed_h
 
