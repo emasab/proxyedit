@@ -253,7 +253,7 @@ def response(context, flow):
 		except Exception as e:
 			pass
 
-    	if k == "all" or escape_match or original.match(k):
+		if k == "all" or escape_match or original.match(k):
 
 			if "response" in conf1:
 				if "status_code" in conf1["response"]:
