@@ -162,6 +162,9 @@ def process_body(flow, body, direction):
     else:
         flow_dir = flow.response
 
+    if "log" in body:
+        print(flow_dir.content)
+
     if "replace"in body:
         body = body["replace"]
         for k,v in body.items():
@@ -211,7 +214,7 @@ def request(context, flow):
                 protocol = conf1["request"]["protocol"]
                 if "replace" in protocol:
                     protocol = protocol["replace"]
-                    flow.request.protocol = realv(protocol, context, flow)
+                    flow.request.scheme = realv(protocol, context, flow)
 
             if "request" in conf1 and "port" in conf1["request"]:
                 port = conf1["request"]["port"]
