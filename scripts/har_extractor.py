@@ -4,7 +4,7 @@
     https://github.com/JustusW/harparser to generate a HAR log object.
 """
 from harparser import HAR
-
+from mitmproxy import ctx as context
 from datetime import datetime
 from pytz import utc
 
@@ -53,15 +53,15 @@ class _HARLog(HAR.log):
         return self.__page_list__
 
 
-def start(context, dump_file):
+def start(dump_file):
     context.dump_file = dump_file
     context.HARLog = _HARLog([])
     context.seen_server = set()
 
 
-def response(context, flow):
+def response(flow):
     if not hasattr(context, "HARLog"):
-	return
+        return
 
     """
        Called when a server response has been received. At the time of this
@@ -184,9 +184,9 @@ def response(context, flow):
     context.HARLog.add(entry)
 
 
-def done(context):
+def done():
     if not hasattr(context, "HARLog"):
-	return
+        return
     """
         Called once on script shutdown, after any other events.
     """
@@ -225,4 +225,4 @@ def print_attributes(obj, filter_string=None, hide_privates=False):
         if filter_string is not None and filter_string not in attr:
             continue
         value = getattr(obj, attr)
-        print "%s.%s" % ('obj', attr), value, type(value)
+        print("%s.%s" % ('obj', attr), value, type(value))
